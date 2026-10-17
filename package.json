@@ -4,9 +4,8 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc --noEmit && vite build",
-    "preview": "vite preview",
+    "dev": "vite --open /dev.html",
+    "build": "tsc --noEmit && node scripts/build-standalone.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
@@ -15,6 +14,7 @@
   },
   "devDependencies": {
     "@types/three": "^0.170.0",
+    "esbuild": "^0.24.2",
     "typescript": "^5.7.3",
     "vite": "^6.0.7",
     "vitest": "^3.0.5"

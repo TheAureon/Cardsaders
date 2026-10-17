@@ -5,12 +5,22 @@ Uno-inspired hand decides who hits hardest. Last fighter standing wins.
 
 Browser game, singleplayer vs bots. No ads, no sign-up. Built with TypeScript, Three.js and Vite.
 
+**Just want to play?** Download [`index.html`](index.html) and double-click it. It's a single
+self-contained file (all code and styles inlined, no server, no install, works offline). It's also the
+file to upload to the hosting site.
+
+For development:
+
 ```bash
 npm install
-npm run dev        # local dev server
-npm run build      # static build in dist/ (relative paths, drop into any folder on the host)
+npm run dev        # dev server with hot reload (opens dev.html)
+npm run build      # typecheck, then regenerate the standalone index.html (+ dist/index.html)
 npm test           # rules + bot tests
 ```
+
+`dev.html` is the source page. `index.html` is generated from it by
+[`scripts/build-standalone.mjs`](scripts/build-standalone.mjs), so don't edit it by hand. Re-run
+`npm run build` after code changes and commit the new `index.html`.
 
 The name lives in one constant, `GAME_NAME` in [`src/config.ts`](src/config.ts). Every other tunable
 number (round length, Block/Reverse duration, bounce cap, rarity weights, punch range, arena size,

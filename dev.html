@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cardsaders</title>
+  </head>
+  <body>
+    <div id="scene"></div>
+
+    <!-- In-game HUD -->
+    <div id="hud" class="hidden">
+      <div id="labels"></div>
+      <div id="floaters"></div>
+
+      <div id="topbar">
+        <div id="round-label">Round 1</div>
+        <div id="round-timer">35</div>
+      </div>
+
+      <div id="enemies"></div>
+      <div id="feed"></div>
+      <div id="warnings"></div>
+      <div id="banner" class="hidden"></div>
+
+      <div id="hand-wrap">
+        <div id="hand-title"><span>Your hand</span> <span id="hand-count"></span></div>
+        <div id="hand"></div>
+        <div id="hand-hint">Double-click a card (or press 1-7)</div>
+      </div>
+
+      <div id="player-panel">
+        <div id="player-status"></div>
+        <div class="player-row">
+          <div id="player-dmg"></div>
+          <div id="player-target"></div>
+        </div>
+        <div class="hpbar big"><div id="player-hp-fill" class="hpfill"></div><span id="player-hp-text"></span></div>
+      </div>
+
+      <div id="spy" class="hidden"></div>
+      <div id="discard-pick" class="hidden"></div>
+    </div>
+
+    <!-- Title menu -->
+    <div id="menu" class="overlay">
+      <div class="panel menu-panel">
+        <div class="logo-cards"><span class="lc red">7</span><span class="lc blue">⇄</span><span class="lc yellow">⊘</span><span class="lc green">×2</span></div>
+        <h1 class="title" data-game-name>Cardsaders</h1>
+        <p class="tagline">Punch. Play cards. Be the last crusader standing.</p>
+        <div class="opt">
+          <span>Fighters</span>
+          <div class="toggle" id="opt-fighters">
+            <button data-value="4" class="active">4</button><button data-value="5">5</button>
+          </div>
+        </div>
+        <div class="opt">
+          <span>Bots</span>
+          <div class="toggle" id="opt-difficulty">
+            <button data-value="easy">Easy</button><button data-value="normal" class="active">Normal</button><button data-value="hard">Hard</button>
+          </div>
+        </div>
+        <button id="btn-play" class="big-btn">⚔ Enter the Arena</button>
+        <button id="btn-howto" class="link-btn">How to play</button>
+      </div>
+    </div>
+
+    <div id="howto" class="overlay hidden">
+      <div class="panel howto-panel">
+        <h2>How to play</h2>
+        <ul>
+          <li><b>WASD</b> move · <b>mouse</b> aim · <b>left click</b> or <b>Space</b> punch · <b>Q/E</b> or <b>right-drag</b> turn camera · <b>Esc</b> pause</li>
+          <li>Each round you get <b>7 random cards</b>. <b>Double-click</b> a card (or press <b>1-7</b>) to play it. Unplayed cards are lost when the round ends.</li>
+          <li>Punches do <b>1 damage</b>. <span class="pill red">+N</span> cards add damage, <span class="pill wild">×2</span> multiplies the whole punch. Every buff lasts 30 sec and stacks.</li>
+          <li><span class="pill blue">Block</span> stops everything for 3 sec. <span class="pill green">Reverse</span> sends everything back for 3 sec.</li>
+          <li><span class="pill red">Skip</span> and <span class="pill yellow">Discard</span> cards hit whoever you <b>punched last</b>. The target gets a 1 sec warning to Block or Reverse.</li>
+          <li>Discards also let you <b>spy</b>: you see the cards they remove. Plain Discard lets you pick any card from their hand.</li>
+          <li>HP carries over between rounds. Last fighter standing wins.</li>
+        </ul>
+        <button id="btn-howto-close" class="big-btn">Got it</button>
+      </div>
+    </div>
+
+    <div id="pause" class="overlay hidden">
+      <div class="panel">
+        <h2>Paused</h2>
+        <button id="btn-resume" class="big-btn">Resume</button>
+        <button id="btn-quit" class="link-btn">Quit to menu</button>
+      </div>
+    </div>
+
+    <div id="gameover" class="overlay hidden">
+      <div class="panel">
+        <h2 id="gameover-title">Victory!</h2>
+        <p id="gameover-sub"></p>
+        <button id="btn-again" class="big-btn">⚔ Fight again</button>
+        <button id="btn-menu" class="link-btn">Menu</button>
+      </div>
+    </div>
+
+    <button id="btn-mute" title="Sound">🔊</button>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

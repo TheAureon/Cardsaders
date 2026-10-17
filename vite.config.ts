@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite';
 
-// Relative base so the build can be dropped into any sub-path on the hosting site.
+// Vite is only used for the dev server (dev.html). The shippable game is the
+// single-file index.html produced by `npm run build`.
 export default defineConfig({
   base: './',
-  build: { target: 'es2020', chunkSizeWarningLimit: 1000 },
 });
