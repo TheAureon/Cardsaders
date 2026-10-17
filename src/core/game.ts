@@ -189,6 +189,7 @@ export class Game {
     f.comboExpiresAt = s.time + c.comboWindow;
     f.punchReadyAt = s.time + c.punchCooldown + (finisher ? c.finisherEndlag : 0);
     f.lastPunchAt = s.time;
+    f.facing = f.input.aim; // swings snap to where you aim
     if (f.dashUntil <= s.time) {
       f.vel.x = Math.sin(f.facing) * c.lunge;
       f.vel.z = Math.cos(f.facing) * c.lunge;

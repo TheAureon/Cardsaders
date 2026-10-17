@@ -15,6 +15,7 @@ export class BotBrain {
   private strafeFlipAt = 0;
   /** Bots brawl in bursts, then back off and circle, like a human would. */
   private mode: 'engage' | 'circle' = 'circle';
+  private breakerReadyAt = 0;
   private modeUntil = 0;
   private aimOffset = 0;
   private aimOffsetAt = 0;
@@ -63,7 +64,13 @@ export class BotBrain {
       this.aimOffset = (Math.random() - 0.5) * 2 * this.tune.aimError;
       this.aimOffsetAt = now + 0.4 + Math.random() * 0.5;
     }
-    const aim = aimTrue + this.aimOffset;
+    // Once a string is landing, the target is stunned: keep the aim honest and keep swinging.
+    const comboing = target.stunUntil > now && target.knockdownUntil <= now && me.lastPunchedId === target.id;
+    const aim = aimTrue + (comboing ? this.aimOffset * 0.6 : this.aimOffset);
+    if (comboing) {
+      this.mode = 'engage';
+      this.modeUntil = Math.max(this.modeUntil, now + 0.6);
+    }
 
     if (now >= this.modeUntil) {
       const engage = this.mode === 'circle';
@@ -104,10 +111,25 @@ export class BotBrain {
 
     if (state.phase !== 'round') return out;
 
+    // Combo breaker: when caught in a string, burn a Block/Reverse if the hit hurts.
+    if (me.stunUntil > now && now >= this.breakerReadyAt && attackDamage(target) >= 4) {
+      this.breakerReadyAt = now + 2;
+      if (Math.random() < this.tune.defendChance * 0.6) {
+        const def = me.hand.find((c) => c.kind === 'reverse') ?? me.hand.find((c) => c.kind === 'block');
+        if (def) out.push({ type: 'playCard', fighterId: me.id, cardId: def.id });
+      }
+    }
+
+    // Gap closers: dash in from mid range, hop now and then.
+    if (this.mode === 'engage' && !scared && dist > 4.5 && dist < 11 && now >= me.dashReadyAt && Math.random() < 0.04) {
+      out.push({ type: 'dash', fighterId: me.id, dirX: dx, dirZ: dz });
+    }
+    if (dist < 7 && me.y === 0 && Math.random() < 0.004) out.push({ type: 'jump', fighterId: me.id });
+
     // Bots punch when facing where they *think* the target is; aim error makes them whiff.
     const facingOk = Math.abs(wrapAngle(aim - me.facing)) < 0.25;
     if (this.mode === 'engage' && dist < CONFIG.combat.punchRange && facingOk && now >= me.punchReadyAt) {
-      if (this.punchAt === 0) this.punchAt = now + this.tune.reaction * Math.random();
+      if (this.punchAt === 0) this.punchAt = now + (comboing ? 0.03 : this.tune.reaction * Math.random());
       if (now >= this.punchAt) {
         out.push({ type: 'punch', fighterId: me.id });
         this.punchAt = 0;
@@ -142,9 +164,13 @@ export class BotBrain {
   }
 
   private pickTarget(state: GameState, me: FighterState): FighterState | undefined {
-    const enemies = state.fighters.filter((f) => f.alive && f.id !== me.id);
+    const all = state.fighters.filter((f) => f.alive && f.id !== me.id);
+    // Downed fighters can't be hit; look for someone else if there is anyone.
+    const standing = all.filter((f) => f.knockdownUntil <= state.time);
+    const enemies = standing.length ? standing : all;
     if (!enemies.length) return undefined;
     const current = enemies.find((f) => f.id === this.targetId);
+    if (!current) this.retargetAt = 0;
     if (current && state.time < this.retargetAt) return current;
     // Prefer close, weak fighters; a dash of randomness keeps bots from dog-piling.
     const scored = enemies

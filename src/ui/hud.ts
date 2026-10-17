@@ -50,12 +50,16 @@ export class Hud {
   private spyUntil = 0;
   private pick: { victimId: string; expiresAt: number } | null = null;
   private bannerUntil = 0;
+  private comboEl: HTMLElement;
+  private comboHits = 0;
+  private comboUntil = 0;
 
   constructor(
     private readonly playerId: string,
     private readonly view: ArenaRenderer,
   ) {
     this.root.classList.remove('hidden');
+    this.comboEl = $('#combo');
     this.handEl.addEventListener('dblclick', (e) => {
       const el = (e.target as HTMLElement).closest<HTMLElement>('.card');
       if (el?.dataset.cardId) this.playFromHand(el);
@@ -73,7 +77,33 @@ export class Hud {
     this.onPlayCard(el.dataset.cardId!);
   }
 
+  /** Show the crosshair while the mouse is locked, a hint while it isn't. */
+  setLocked(locked: boolean) {
+    $('#crosshair').classList.toggle('hidden', !locked);
+    $('#lock-hint').classList.toggle('hidden', locked);
+  }
+
+  private bumpCombo(now: number) {
+    this.comboHits = now < this.comboUntil ? this.comboHits + 1 : 1;
+    this.comboUntil = now + 1.6;
+    $('.combo-n', this.comboEl).textContent = String(this.comboHits);
+    this.comboEl.classList.remove('hidden', 'pop');
+    void this.comboEl.offsetWidth;
+    this.comboEl.classList.add('pop');
+  }
+
+  /** Restart a one-shot CSS animation on an overlay element. */
+  private pulse(id: string, cls: string) {
+    const el = $(`#${id}`);
+    el.className = '';
+    void el.offsetWidth;
+    el.className = cls;
+  }
+
   reset() {
+    this.comboHits = 0;
+    this.comboUntil = 0;
+    this.comboEl.classList.add('hidden');
     this.enemiesEl.innerHTML = '';
     this.labelsEl.innerHTML = '';
     this.floatersEl.innerHTML = '';
@@ -108,7 +138,11 @@ export class Hud {
         break;
       case 'hit': {
         const t = state.fighters.find((f) => f.id === e.targetId)!;
-        this.floater(t, `-${e.damage}`, e.reflected ? 'dmg reflected' : e.targetId === me ? 'dmg mine' : 'dmg');
+        const cls = e.reflected ? 'dmg reflected' : e.targetId === me ? 'dmg mine' : 'dmg';
+        this.floater(t, e.finisher ? `${e.damage}!` : `${e.damage}`, e.finisher ? `${cls} finisher` : cls);
+        if (e.attackerId === me && e.targetId !== me) this.bumpCombo(state.time);
+        if (e.targetId === me) this.pulse('vignette', e.finisher ? 'heavy' : 'light');
+        if (e.finisher && (e.attackerId === me || e.targetId === me)) this.pulse('flash', 'on');
         break;
       }
       case 'blocked': {
@@ -179,7 +213,7 @@ export class Hud {
   }
 
   private floater(f: FighterState, text: string, cls: string) {
-    const p = this.view.project(f.pos.x, 2.6, f.pos.z);
+    const p = this.view.project(f.pos.x, f.y + 2.6, f.pos.z);
     if (!p.visible) return;
     const el = h('div', `floater ${cls}`, text);
     el.style.left = `${p.x + (Math.random() - 0.5) * 30}px`;
@@ -254,6 +288,10 @@ export class Hud {
 
     if (t > this.bannerUntil) this.bannerEl.classList.add('hidden');
     if (t > this.spyUntil) this.spyEl.classList.add('hidden');
+    if (t > this.comboUntil) this.comboEl.classList.add('hidden');
+    const dashLeft = Math.max(0, me.dashReadyAt - t);
+    $('#dash-fill').style.width = `${(1 - dashLeft / CONFIG.arena.dashCooldown) * 100}%`;
+    $('#dash-meter').classList.toggle('ready', dashLeft === 0);
 
     this.updateHand(me);
     this.updatePlayerPanel(me, state);
@@ -374,8 +412,8 @@ export class Hud {
         this.labelsEl.appendChild(el);
         this.labels.set(f.id, el);
       }
-      const p = this.view.project(f.pos.x, 2.75, f.pos.z);
-      el.style.display = f.alive && p.visible ? '' : 'none';
+      const p = this.view.project(f.pos.x, f.y + 3.05, f.pos.z);
+      el.style.display = f.alive && p.visible && f.id !== this.playerId ? '' : 'none';
       el.style.transform = `translate(${p.x}px, ${p.y}px) translate(-50%, -100%)`;
       $('.hpfill', el).style.width = `${(f.hp / CONFIG.match.maxHp) * 100}%`;
     }

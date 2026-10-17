@@ -63,7 +63,7 @@ export const CONFIG = {
      * several card kinds is the sum of its members.
      */
     weights: {
-      number: 34,
+      number: 28,
       skip: 12,
       block: 10,
       multiplier: 6,
@@ -114,6 +114,6 @@ export interface BotTuning {
 
 export const BOT_DIFFICULTY: Record<Difficulty, BotTuning> = {
   easy: { reaction: 0.6, aimError: 1.4, cardThink: 2.5, defendChance: 0.25, engageSeconds: 1.5, circleSeconds: 4 },
-  normal: { reaction: 0.35, aimError: 1.05, cardThink: 1.4, defendChance: 0.55, engageSeconds: 2, circleSeconds: 3 },
+  normal: { reaction: 0.35, aimError: 1.05, cardThink: 1.4, defendChance: 0.55, engageSeconds: 1.8, circleSeconds: 5 },
   hard: { reaction: 0.2, aimError: 0.75, cardThink: 0.8, defendChance: 0.85, engageSeconds: 3, circleSeconds: 2 },
 };

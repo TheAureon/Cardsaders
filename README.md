@@ -28,14 +28,21 @@ bot difficulty) is in the same file.
 
 ## Controls
 
+The game plays like a Roblox battlegrounds game (The Strongest Battlegrounds, Jujutsu Shenanigans):
+the mouse is locked to an over-the-shoulder camera, and your fighter always faces where you look.
+
 | Action | Input |
 | --- | --- |
-| Move | WASD / arrow keys (camera-relative) |
-| Aim | Mouse: your fighter faces the cursor |
-| Punch | Left click or Space |
-| Play a card | Double-click it in the hand, or press 1-7 |
-| Turn camera | Q / E or right-drag |
-| Pause | Esc |
+| Look / aim | Mouse (click the game to lock the cursor) |
+| Move | WASD / arrow keys |
+| Punch (M1) | Left click. Chain 4 for a combo: hits 1-3 stun, the 4th launches |
+| Jump | Space |
+| Dash | Q (in the direction you're moving) |
+| Play a card | 1-7, or hold Alt to free the cursor and double-click a card |
+| Pause | P / Esc |
+
+If the page can't lock the mouse (e.g. inside a sandboxed iframe), clicks punch directly and
+right-drag turns the camera.
 
 ## Rules as implemented
 
@@ -44,7 +51,11 @@ bot difficulty) is in the same file.
   highest HP wins.
 - At round start everyone gets a fresh random hand of 7. When the round ends, unplayed cards, buffs,
   Block/Reverse, Skip, queued and in-flight cards are all wiped.
-- Punch: short range cone in front of you, 0.5 s cooldown, base damage 1, with a knockback stagger.
+- Punch: short range cone in front of you, 0.5 s cooldown, base damage 1. Punches form an M1 string:
+  hits 1-3 stun the target long enough for the next punch to connect, and the 4th hit is a finisher
+  that launches them into a ragdoll. Downed fighters can't be punched until they get up. Cards
+  work even while stunned, so Block or Reverse doubles as a combo breaker.
+- Movement: jump (Space) and a short dash (Q, 1.6 s cooldown). Launched fighters bounce off the wall.
 - Damage = `(1 + all number buffs) × all multiplier buffs`. Each buff has its own 30 s timer.
 - Cards have no cooldown; you can play all 7 at once.
 - Skip and all Discards target whoever you last landed a punch on. If you haven't punched anyone

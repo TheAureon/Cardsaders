@@ -854,3 +854,164 @@ body {
     opacity: 0;
   }
 }
+
+/* ============================================================= battlegrounds feel */
+#crosshair {
+  left: 50%;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.6);
+}
+#lock-hint {
+  left: 50%;
+  top: 58%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.65);
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-weight: 800;
+  font-size: 15px;
+  animation: pulse 0.8s infinite alternate;
+}
+
+/* Hit counter, right of centre. */
+#combo {
+  right: 22%;
+  top: 34%;
+  text-align: center;
+  font-family: var(--display);
+  font-style: italic;
+  transform: rotate(-6deg);
+  -webkit-text-stroke: 2px #000;
+  text-shadow: 3px 3px 0 #000;
+}
+#combo.pop {
+  animation: comboPop 0.18s ease-out;
+}
+.combo-n {
+  font-size: 72px;
+  line-height: 0.9;
+  color: #fff;
+}
+.combo-label {
+  font-size: 22px;
+  color: #ffd54f;
+  letter-spacing: 2px;
+}
+@keyframes comboPop {
+  from {
+    transform: rotate(-6deg) scale(1.5);
+  }
+}
+
+/* Damage numbers: chunky, italic, outlined. */
+.floater {
+  font-style: italic;
+  font-size: 30px;
+  -webkit-text-stroke: 2px #000;
+  text-shadow: 2px 3px 0 #000;
+  animation: floatPop 0.9s ease-out forwards;
+}
+.floater.finisher {
+  font-size: 46px;
+  color: #ff3d00;
+}
+.floater.dmg.mine {
+  color: #ff5252;
+}
+@keyframes floatPop {
+  0% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.8);
+  }
+  15% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -150%) scale(0.9);
+  }
+}
+
+/* Screen flash on finishers, red vignette when you get hit. */
+#flash,
+#vignette {
+  inset: 0;
+  opacity: 0;
+}
+#flash {
+  background: #fff;
+}
+#flash.on {
+  animation: flash 0.25s ease-out;
+}
+#vignette {
+  background: radial-gradient(ellipse at center, transparent 45%, rgba(200, 0, 0, 0.75));
+}
+#vignette.light {
+  animation: vignette 0.35s ease-out;
+}
+#vignette.heavy {
+  animation: vignette 0.8s ease-out;
+}
+@keyframes flash {
+  from {
+    opacity: 0.5;
+  }
+}
+@keyframes vignette {
+  from {
+    opacity: 1;
+  }
+}
+
+/* In-game banners in a punchy italic instead of the menu's medieval script. */
+.banner-title {
+  font-family: var(--display);
+  font-style: italic;
+  font-weight: 900;
+  color: #fff;
+  -webkit-text-stroke: 3px #000;
+  text-shadow: 5px 5px 0 #000;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+.banner-sub {
+  font-style: italic;
+  color: #ffd54f;
+  -webkit-text-stroke: 1px #000;
+}
+
+#dash-meter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  font-family: var(--display);
+  font-style: italic;
+  font-size: 12px;
+  opacity: 0.75;
+}
+#dash-meter.ready {
+  opacity: 1;
+  color: #80d8ff;
+}
+.dash-bar {
+  flex: 1;
+  height: 6px;
+  background: rgba(0, 0, 0, 0.55);
+  border-radius: 3px;
+  overflow: hidden;
+}
+#dash-fill {
+  height: 100%;
+  background: #80d8ff;
+}
+#player-hp-text,
+#round-timer {
+  font-style: italic;
+}

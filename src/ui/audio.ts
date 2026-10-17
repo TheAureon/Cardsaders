@@ -52,9 +52,24 @@ export class Sfx {
   whoosh() {
     this.noise(0.08, 0.06, 2500);
   }
-  hit(big: boolean) {
-    this.noise(big ? 0.25 : 0.12, big ? 0.45 : 0.3, big ? 600 : 900);
-    this.tone(big ? 90 : 140, 0.15, 'square', 0.08, -60);
+  hit(big: boolean, vol = 1) {
+    this.noise(big ? 0.25 : 0.12, (big ? 0.5 : 0.35) * vol, big ? 700 : 1100);
+    this.tone(big ? 90 : 150, 0.15, 'square', 0.1 * vol, -70);
+  }
+  finisher(vol = 1) {
+    this.noise(0.45, 0.7 * vol, 500);
+    this.tone(70, 0.5, 'sawtooth', 0.16 * vol, -40);
+    this.tone(1400, 0.12, 'square', 0.05 * vol, -900);
+  }
+  slam(vol = 1) {
+    this.noise(0.35, 0.5 * vol, 300);
+    this.tone(55, 0.35, 'sine', 0.2 * vol, -20);
+  }
+  dash() {
+    this.noise(0.18, 0.18, 3000);
+  }
+  jump() {
+    this.tone(260, 0.12, 'triangle', 0.06, 200);
   }
   card() {
     this.tone(660, 0.08, 'triangle', 0.12, 220);

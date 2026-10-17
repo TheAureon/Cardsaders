@@ -34,6 +34,8 @@ interface Session {
 }
 
 let session: Session | null = null;
+let hitstop = 0;
+let slowmo = 0;
 let paused = false;
 
 function shuffle<T>(arr: T[]): T[] {
@@ -62,9 +64,17 @@ function startMatch() {
   hud.onDiscardPick = (victimId, cardId) => sink.send({ type: 'discardPick', fighterId: PLAYER_ID, victimId, cardId });
   const bots = setups.filter((s) => s.isBot).map((s) => new BotBrain(s.id, settings.difficulty));
   session = { game, sink, bots, hud, acc: 0, overShown: false };
+  controls.onLockChange = (locked) => hud.setLocked(locked);
+  // Test hook for automated play-throughs: open with #debug.
+  if (location.hash === '#debug') Object.assign(window, { cardsaders: session, cardsadersView: view });
+  hud.setLocked(controls.locked);
 
   const me = game.state.fighters[0];
   view.cameraYaw = me.facing;
+  view.cameraPitch = 0.38;
+  hitstop = 0;
+  slowmo = 0;
+  controls.lock();
   $('menu').classList.add('hidden');
   $('gameover').classList.add('hidden');
   $('pause').classList.add('hidden');
@@ -73,19 +83,33 @@ function startMatch() {
   controls.enabled = true;
 }
 
-function playEventSounds(s: Session, e: GameEvent) {
+function playEventSounds(e: GameEvent) {
   switch (e.type) {
     case 'punch':
       if (e.fighterId === PLAYER_ID) sfx.whoosh();
-      view.onPunch(e.fighterId);
       break;
     case 'hit': {
-      const big = e.damage >= 10;
       const involved = e.targetId === PLAYER_ID || e.attackerId === PLAYER_ID;
-      if (involved) sfx.hit(big);
-      view.onHit(e.targetId, s.game.state.time, big, e.targetId === PLAYER_ID);
+      if (e.finisher) sfx.finisher(involved ? 1 : 0.35);
+      else sfx.hit(e.damage >= 10, involved ? 1 : 0.3);
+      if (involved) hitstop = Math.max(hitstop, e.finisher ? 0.14 : 0.055);
       break;
     }
+    case 'dash':
+      if (e.fighterId === PLAYER_ID) sfx.dash();
+      break;
+    case 'jump':
+      if (e.fighterId === PLAYER_ID) sfx.jump();
+      break;
+    case 'land':
+      if (e.hard) sfx.slam(e.fighterId === PLAYER_ID ? 1 : 0.4);
+      break;
+    case 'wallSlam':
+      sfx.slam(0.7);
+      break;
+    case 'discardPickStart':
+      if (e.pickerId === PLAYER_ID) controls.unlock();
+      break;
     case 'blocked':
       if (e.targetId === PLAYER_ID || e.sourceId === PLAYER_ID) sfx.block();
       break;
@@ -107,6 +131,7 @@ function playEventSounds(s: Session, e: GameEvent) {
       break;
     case 'eliminated':
       sfx.ko();
+      slowmo = 1.1;
       break;
   }
 }
@@ -121,6 +146,7 @@ function showGameOver(s: Session) {
     : `You were knocked out${s.game.state.fighters[0].eliminatedRound ? ` in round ${s.game.state.fighters[0].eliminatedRound}` : ''}.`;
   $('gameover').classList.remove('hidden');
   controls.enabled = false;
+  controls.unlock();
 }
 
 let last = performance.now();
@@ -129,18 +155,28 @@ function frame(now: number) {
   last = now;
   const s = session;
   if (s && !paused) {
-    s.acc += dt;
+    // Hitstop freezes the action for a few frames on impact; KOs play in slow motion.
+    if (hitstop > 0) hitstop -= dt;
+    else {
+      if (slowmo > 0) slowmo -= dt;
+      s.acc += slowmo > 0 ? dt * 0.3 : dt;
+    }
     while (s.acc >= TICK) {
       s.acc -= TICK;
       const me = s.game.state.fighters[0];
-      if (me.alive) for (const cmd of controls.poll(PLAYER_ID, me.pos, me.facing, TICK)) s.sink.send(cmd);
+      if (me.alive) for (const cmd of controls.poll(me, s.game.state.fighters)) s.sink.send(cmd);
       const events = s.game.drainEvents();
       s.game.step(TICK);
       events.push(...s.game.drainEvents());
       for (const bot of s.bots) for (const cmd of bot.think(s.game.state, events)) s.sink.send(cmd);
+      view.onEvents(s.game.state, events, PLAYER_ID);
       for (const e of events) {
         s.hud.handle(s.game.state, e);
-        playEventSounds(s, e);
+        playEventSounds(e);
+      }
+      if (hitstop > 0) {
+        s.acc = 0;
+        break;
       }
     }
     view.update(s.game.state, PLAYER_ID, dt);
@@ -154,6 +190,7 @@ function frame(now: number) {
   } else {
     // Idle menu: slowly orbit the empty arena.
     view.cameraYaw += dt * 0.15;
+    view.cameraPitch = 0.35;
     view.update({ time: now / 1000, fighters: [] } as never, PLAYER_ID, dt);
   }
   requestAnimationFrame(frame);
@@ -165,9 +202,12 @@ function setPaused(p: boolean) {
   paused = p;
   $('pause').classList.toggle('hidden', !p);
   controls.enabled = !p;
+  if (p) controls.unlock();
+  else controls.lock();
 }
 
 function toMenu() {
+  controls.unlock();
   session?.hud.hide();
   session = null;
   view.dispose();
@@ -202,7 +242,7 @@ $('btn-mute').addEventListener('click', () => {
   $('btn-mute').textContent = sfx.muted ? '🔇' : '🔊';
 });
 window.addEventListener('keydown', (e) => {
-  if (e.code === 'Escape' && session) setPaused(!paused);
+  if ((e.code === 'Escape' || e.code === 'KeyP') && session) setPaused(!paused);
 });
 document.addEventListener('visibilitychange', () => {
   if (document.hidden && session && !paused) setPaused(true);
