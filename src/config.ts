@@ -23,12 +23,26 @@ export const CONFIG = {
     baseDamage: 1,
     punchCooldown: 0.5,
     /** Max distance between fighter centres for a punch to land. */
-    punchRange: 2.0,
+    punchRange: 2.7,
+    /** Max height difference for a punch to land (lets you hit airborne foes). */
+    punchHeight: 1.8,
     /** Half-angle of the punch cone in radians (in front of the fighter). */
-    punchArc: 0.75,
-    /** Speed a hit shoves the target back with, and how long they lose control. */
-    knockback: 9,
-    staggerSeconds: 0.3,
+    punchArc: 0.9,
+    /** M1 string: hits 1..n-1 stun, hit n is the finisher that launches. */
+    comboLength: 4,
+    /** Time after a swing in which the next swing continues the string. */
+    comboWindow: 1.1,
+    /** Forward step on every swing, so strings chase the target. */
+    lunge: 6,
+    /** Target can't move or punch while stunned; longer than the cooldown so strings connect. */
+    hitstun: 0.65,
+    hitKnockback: 3.5,
+    finisherKnockback: 22,
+    finisherLift: 8,
+    /** Ragdoll time after a finisher. Downed fighters can't be punched. */
+    knockdownSeconds: 1.4,
+    /** Extra recovery after the finisher swing, hit or miss. */
+    finisherEndlag: 0.9,
   },
 
   cards: {
@@ -66,10 +80,15 @@ export const CONFIG = {
   },
 
   arena: {
-    radius: 14,
+    radius: 20,
     fighterRadius: 0.6,
-    moveSpeed: 6,
-    turnSpeed: 14,
+    moveSpeed: 8,
+    turnSpeed: 22,
+    gravity: 30,
+    jumpSpeed: 11,
+    dashSpeed: 28,
+    dashSeconds: 0.18,
+    dashCooldown: 1.6,
   },
 
   bots: {

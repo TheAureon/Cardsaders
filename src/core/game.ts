@@ -69,6 +69,8 @@ export class Game {
           alive: true,
           pos,
           vel: { x: 0, z: 0 },
+          y: 0,
+          vy: 0,
           facing: Math.atan2(-pos.x, -pos.z),
           hand: [],
           buffs: [],
@@ -76,7 +78,14 @@ export class Game {
           reverseUntil: 0,
           skipped: false,
           punchReadyAt: 0,
-          staggerUntil: 0,
+          stunUntil: 0,
+          knockdownUntil: 0,
+          comboCount: 0,
+          comboExpiresAt: 0,
+          dashUntil: 0,
+          dashReadyAt: 0,
+          dashDir: { x: 0, z: 1 },
+          lastHitAt: -10,
           lastPunchAt: -10,
           lastPunchedId: null,
           queuedCards: [],
@@ -121,6 +130,12 @@ export class Game {
       case 'punch':
         this.punch(f);
         break;
+      case 'jump':
+        this.jump(f);
+        break;
+      case 'dash':
+        this.dash(f, cmd.dirX, cmd.dirZ);
+        break;
       case 'playCard':
         this.playCard(f, cmd.cardId);
         break;
@@ -130,24 +145,68 @@ export class Game {
     }
   }
 
+  /** Can this fighter move and punch right now? (Cards are always allowed.) */
+  canAct(f: FighterState): boolean {
+    const t = this.state.time;
+    return f.alive && f.stunUntil <= t && f.knockdownUntil <= t;
+  }
+
+  private canMove(): boolean {
+    const p = this.state.phase;
+    return p === 'round' || p === 'intermission' || p === 'over';
+  }
+
+  private jump(f: FighterState) {
+    if (!this.canMove() || !this.canAct(f) || f.y > 0.01) return;
+    f.vy = CONFIG.arena.jumpSpeed;
+    this.emit({ type: 'jump', fighterId: f.id });
+  }
+
+  private dash(f: FighterState, dirX: number, dirZ: number) {
+    const t = this.state.time;
+    if (!this.canMove() || !this.canAct(f) || t < f.dashReadyAt) return;
+    let len = Math.hypot(dirX, dirZ);
+    if (len < 0.1) {
+      dirX = Math.sin(f.facing);
+      dirZ = Math.cos(f.facing);
+      len = 1;
+    }
+    f.dashDir = { x: dirX / len, z: dirZ / len };
+    f.dashUntil = t + CONFIG.arena.dashSeconds;
+    f.dashReadyAt = t + CONFIG.arena.dashCooldown;
+    this.emit({ type: 'dash', fighterId: f.id });
+  }
+
   private punch(f: FighterState) {
     const s = this.state;
-    if (s.phase !== 'round' || s.time < f.punchReadyAt) return;
-    f.punchReadyAt = s.time + CONFIG.combat.punchCooldown;
-    f.lastPunchAt = s.time;
-    this.emit({ type: 'punch', fighterId: f.id });
+    const c = CONFIG.combat;
+    if (s.phase !== 'round' || s.time < f.punchReadyAt || !this.canAct(f)) return;
 
-    // Closest living fighter inside the range cone.
+    // M1 string: keep counting while swings come within the combo window.
+    const combo = s.time <= f.comboExpiresAt && f.comboCount < c.comboLength ? f.comboCount + 1 : 1;
+    const finisher = combo === c.comboLength;
+    f.comboCount = finisher ? 0 : combo;
+    f.comboExpiresAt = s.time + c.comboWindow;
+    f.punchReadyAt = s.time + c.punchCooldown + (finisher ? c.finisherEndlag : 0);
+    f.lastPunchAt = s.time;
+    if (f.dashUntil <= s.time) {
+      f.vel.x = Math.sin(f.facing) * c.lunge;
+      f.vel.z = Math.cos(f.facing) * c.lunge;
+    }
+    this.emit({ type: 'punch', fighterId: f.id, combo });
+
+    // Closest living, standing fighter inside the range cone.
     let best: FighterState | undefined;
     let bestDist = Infinity;
     for (const o of s.fighters) {
-      if (o === f || !o.alive) continue;
+      if (o === f || !o.alive || o.knockdownUntil > s.time) continue;
+      if (Math.abs(o.y - f.y) > c.punchHeight) continue;
       const dx = o.pos.x - f.pos.x;
       const dz = o.pos.z - f.pos.z;
       const dist = Math.hypot(dx, dz);
-      if (dist > CONFIG.combat.punchRange || dist >= bestDist) continue;
+      if (dist > c.punchRange || dist >= bestDist) continue;
       const angle = Math.atan2(dx, dz);
-      if (Math.abs(wrapAngle(angle - f.facing)) > CONFIG.combat.punchArc) continue;
+      if (Math.abs(wrapAngle(angle - f.facing)) > c.punchArc) continue;
       best = o;
       bestDist = dist;
     }
@@ -156,13 +215,13 @@ export class Game {
     f.lastPunchedId = best.id;
     const damage = attackDamage(f);
     const route = this.route(f.id, best.id, 'punch');
-    if (route) this.damage(this.fighter(route.receiver)!, damage, route.giver !== f.id, route.giver);
+    if (route) this.damage(this.fighter(route.receiver)!, damage, route.giver !== f.id, route.giver, combo);
 
     // Targeted cards that were waiting for a first punch now go out.
     if (f.alive && f.queuedCards.length) {
       const queued = f.queuedCards;
       f.queuedCards = [];
-      for (const c of queued) this.launch(f, best, c.kind as TargetedKind);
+      for (const card of queued) this.launch(f, best, card.kind as TargetedKind);
     }
   }
 
@@ -290,19 +349,34 @@ export class Game {
     this.emit({ type: 'cardsRemoved', byId, victimId: victim.id, cards });
   }
 
-  private damage(target: FighterState, amount: number, reflected: boolean, dealtBy: string) {
+  private damage(target: FighterState, amount: number, reflected: boolean, dealtBy: string, combo: number) {
     if (!target.alive) return;
+    const c = CONFIG.combat;
+    const t = this.state.time;
+    const finisher = combo === c.comboLength;
     target.hp = Math.max(0, target.hp - amount);
-    this.emit({ type: 'hit', attackerId: dealtBy, targetId: target.id, damage: amount, reflected });
+    target.lastHitAt = t;
+    this.emit({ type: 'hit', attackerId: dealtBy, targetId: target.id, damage: amount, reflected, combo, finisher });
 
     const giver = this.fighter(dealtBy);
     if (giver && giver !== target) {
       const dx = target.pos.x - giver.pos.x;
       const dz = target.pos.z - giver.pos.z;
       const len = Math.hypot(dx, dz) || 1;
-      target.vel.x = (dx / len) * CONFIG.combat.knockback;
-      target.vel.z = (dz / len) * CONFIG.combat.knockback;
-      target.staggerUntil = this.state.time + CONFIG.combat.staggerSeconds;
+      const push = finisher ? c.finisherKnockback : c.hitKnockback;
+      target.vel.x = (dx / len) * push;
+      target.vel.z = (dz / len) * push;
+      target.dashUntil = 0;
+      // Getting hit breaks your own string.
+      target.comboCount = 0;
+      if (finisher) {
+        target.vy = c.finisherLift;
+        target.knockdownUntil = t + c.knockdownSeconds;
+        target.stunUntil = t + c.knockdownSeconds;
+      } else {
+        target.stunUntil = Math.max(target.stunUntil, t + c.hitstun);
+        if (target.y > 0.05) target.vy = Math.max(target.vy, 2); // juggle: keep them floating
+      }
     }
     if (target.hp <= 0) this.eliminate(target, dealtBy === target.id ? null : dealtBy);
   }
@@ -412,31 +486,65 @@ export class Game {
 
   private integrate(dt: number) {
     const s = this.state;
-    const { moveSpeed, turnSpeed, radius, fighterRadius } = CONFIG.arena;
-    const canMove = s.phase === 'round' || s.phase === 'intermission' || s.phase === 'over';
+    const t = s.time;
+    const A = CONFIG.arena;
+    const max = A.radius - A.fighterRadius;
+    const canMove = this.canMove();
     for (const f of s.fighters) {
       if (!f.alive) continue;
-      const staggered = f.staggerUntil > s.time;
-      const control = canMove && !staggered;
-      const tx = control ? f.input.moveX * moveSpeed : 0;
-      const tz = control ? f.input.moveZ * moveSpeed : 0;
-      const blend = Math.min(1, dt * (staggered ? 3 : 12));
-      f.vel.x += (tx - f.vel.x) * blend;
-      f.vel.z += (tz - f.vel.z) * blend;
+      const down = f.knockdownUntil > t;
+      const stunned = f.stunUntil > t;
+      const airborne = f.y > 0 || f.vy > 0;
+
+      if (f.dashUntil > t && !stunned) {
+        f.vel.x = f.dashDir.x * A.dashSpeed;
+        f.vel.z = f.dashDir.z * A.dashSpeed;
+      } else if (down || stunned || !canMove) {
+        // No control: slide to a stop (much less friction in the air, so launches fly).
+        const k = Math.exp(-dt * (airborne ? 0.4 : down ? 4 : 6));
+        f.vel.x *= k;
+        f.vel.z *= k;
+      } else {
+        const blend = Math.min(1, dt * (airborne ? 5 : 14));
+        f.vel.x += (f.input.moveX * A.moveSpeed - f.vel.x) * blend;
+        f.vel.z += (f.input.moveZ * A.moveSpeed - f.vel.z) * blend;
+      }
       f.pos.x += f.vel.x * dt;
       f.pos.z += f.vel.z * dt;
-      f.facing += wrapAngle(f.input.aim - f.facing) * Math.min(1, dt * turnSpeed);
-      f.facing = wrapAngle(f.facing);
+
+      if (airborne) {
+        f.vy -= A.gravity * dt;
+        f.y += f.vy * dt;
+        if (f.y <= 0) {
+          this.emit({ type: 'land', fighterId: f.id, hard: down && f.vy < -6 });
+          f.y = 0;
+          f.vy = 0;
+        }
+      }
+
+      if (!down && !stunned) {
+        f.facing += wrapAngle(f.input.aim - f.facing) * Math.min(1, dt * A.turnSpeed);
+        f.facing = wrapAngle(f.facing);
+      }
 
       const d = Math.hypot(f.pos.x, f.pos.z);
-      const max = radius - fighterRadius;
       if (d > max) {
-        f.pos.x *= max / d;
-        f.pos.z *= max / d;
+        const nx = f.pos.x / d;
+        const nz = f.pos.z / d;
+        f.pos.x = nx * max;
+        f.pos.z = nz * max;
+        const radial = f.vel.x * nx + f.vel.z * nz;
+        if (radial > 0) {
+          if (down && radial > 8) this.emit({ type: 'wallSlam', fighterId: f.id });
+          // Bounce off the wall when launched, otherwise just stop.
+          const bounce = down ? 1.35 : 1;
+          f.vel.x -= nx * radial * bounce;
+          f.vel.z -= nz * radial * bounce;
+        }
       }
     }
-    // Push overlapping fighters apart.
-    const alive = s.fighters.filter((f) => f.alive);
+    // Push overlapping, grounded fighters apart.
+    const alive = s.fighters.filter((f) => f.alive && f.y < 1);
     for (let i = 0; i < alive.length; i++) {
       for (let j = i + 1; j < alive.length; j++) {
         const a = alive[i];
@@ -444,7 +552,7 @@ export class Game {
         const dx = b.pos.x - a.pos.x;
         const dz = b.pos.z - a.pos.z;
         const dist = Math.hypot(dx, dz) || 0.0001;
-        const overlap = fighterRadius * 2 - dist;
+        const overlap = A.fighterRadius * 2 - dist;
         if (overlap > 0) {
           const px = (dx / dist) * overlap * 0.5;
           const pz = (dz / dist) * overlap * 0.5;

@@ -46,6 +46,9 @@ export interface FighterState {
   alive: boolean;
   pos: Vec2;
   vel: Vec2;
+  /** Height above the arena floor and vertical speed. */
+  y: number;
+  vy: number;
   /** Yaw in radians; 0 faces +z. */
   facing: number;
   hand: Card[];
@@ -55,8 +58,17 @@ export interface FighterState {
   /** Next card played does nothing. Cleared when a card is used or the round ends. */
   skipped: boolean;
   punchReadyAt: number;
-  /** Knocked back and not in control until this time. */
-  staggerUntil: number;
+  /** Hitstun: can't move or punch until this time (cards still work). */
+  stunUntil: number;
+  /** Ragdolled by a finisher until this time; can't act or be punched. */
+  knockdownUntil: number;
+  /** Position in the current M1 string (1..comboLength) of the last swing. */
+  comboCount: number;
+  comboExpiresAt: number;
+  dashUntil: number;
+  dashReadyAt: number;
+  dashDir: Vec2;
+  lastHitAt: number;
   /** Time of the last punch thrown (for animation). */
   lastPunchAt: number;
   /** Fighter this one last landed a punch on. Skip/Discard target them. */
@@ -107,6 +119,8 @@ export interface GameState {
 export type Command =
   | { type: 'input'; fighterId: string; moveX: number; moveZ: number; aim: number }
   | { type: 'punch'; fighterId: string }
+  | { type: 'jump'; fighterId: string }
+  | { type: 'dash'; fighterId: string; dirX: number; dirZ: number }
   | { type: 'playCard'; fighterId: string; cardId: string }
   | { type: 'discardPick'; fighterId: string; victimId: string; cardId: string };
 
@@ -114,8 +128,20 @@ export type Command =
 export type GameEvent =
   | { type: 'roundStart'; round: number }
   | { type: 'roundEnd'; round: number }
-  | { type: 'punch'; fighterId: string }
-  | { type: 'hit'; attackerId: string; targetId: string; damage: number; reflected: boolean }
+  | { type: 'punch'; fighterId: string; combo: number }
+  | {
+      type: 'hit';
+      attackerId: string;
+      targetId: string;
+      damage: number;
+      reflected: boolean;
+      combo: number;
+      finisher: boolean;
+    }
+  | { type: 'jump'; fighterId: string }
+  | { type: 'dash'; fighterId: string }
+  | { type: 'land'; fighterId: string; hard: boolean }
+  | { type: 'wallSlam'; fighterId: string }
   | { type: 'blocked'; sourceId: string; targetId: string; what: 'punch' | TargetedKind }
   | { type: 'reflected'; sourceId: string; reverserId: string; what: 'punch' | TargetedKind; bounce: number }
   | { type: 'cardPlayed'; fighterId: string; card: Card }

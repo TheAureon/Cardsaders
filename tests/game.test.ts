@@ -95,6 +95,88 @@ describe('damage', () => {
   });
 });
 
+describe('M1 combos and movement', () => {
+  function swing(game: Game, a: FighterState, b: FighterState) {
+    faceOff(a, b);
+    game.dispatch({ type: 'punch', fighterId: a.id });
+  }
+
+  it('hits stun the target so they cannot punch back', () => {
+    const game = setup();
+    const [a, b] = game.state.fighters;
+    swing(game, a, b);
+    expect(b.stunUntil).toBeGreaterThan(game.state.time);
+    game.dispatch({ type: 'punch', fighterId: b.id });
+    expect(a.hp).toBe(100);
+  });
+
+  it('the 4th hit of a string launches and knocks the target down', () => {
+    const game = setup();
+    const [a, b] = game.state.fighters;
+    const events: GameEvent[] = [];
+    for (let i = 0; i < CONFIG.combat.comboLength; i++) {
+      swing(game, a, b);
+      events.push(...game.drainEvents());
+      if (i < CONFIG.combat.comboLength - 1) {
+        expect(b.knockdownUntil).toBe(0);
+        run(game, CONFIG.combat.punchCooldown + 0.02);
+      }
+    }
+    const hits = events.filter((e) => e.type === 'hit');
+    expect(hits.map((h) => h.type === 'hit' && h.combo)).toEqual([1, 2, 3, 4]);
+    expect(hits.at(-1)).toMatchObject({ finisher: true });
+    expect(b.knockdownUntil).toBeGreaterThan(game.state.time);
+    expect(b.vy).toBeGreaterThan(0);
+    expect(b.hp).toBe(96);
+
+    // Downed fighters can't be punched, and the finisher has extra endlag.
+    run(game, CONFIG.combat.punchCooldown + 0.02);
+    swing(game, a, b);
+    expect(b.hp).toBe(96);
+    run(game, CONFIG.combat.knockdownSeconds);
+    expect(b.y).toBe(0);
+  });
+
+  it('the string resets if you wait too long between swings', () => {
+    const game = setup();
+    const [a, b] = game.state.fighters;
+    swing(game, a, b);
+    run(game, CONFIG.combat.comboWindow + 0.1);
+    game.drainEvents();
+    swing(game, a, b);
+    expect(game.drainEvents().find((e) => e.type === 'punch')).toMatchObject({ combo: 1 });
+  });
+
+  it('a Block card played mid-string stops the rest of it', () => {
+    const game = setup();
+    const [a, b] = game.state.fighters;
+    swing(game, a, b);
+    game.dispatch({ type: 'playCard', fighterId: b.id, cardId: give(game, b, 'block').id });
+    run(game, CONFIG.combat.punchCooldown + 0.02);
+    swing(game, a, b);
+    expect(b.hp).toBe(99);
+  });
+
+  it('jump and dash', () => {
+    const game = setup();
+    const [a] = game.state.fighters;
+    a.pos = { x: 0, z: 0 };
+    game.dispatch({ type: 'jump', fighterId: a.id });
+    run(game, 0.2);
+    expect(a.y).toBeGreaterThan(0.5);
+    run(game, 1);
+    expect(a.y).toBe(0);
+
+    game.dispatch({ type: 'dash', fighterId: a.id, dirX: 1, dirZ: 0 });
+    run(game, CONFIG.arena.dashSeconds);
+    expect(a.pos.x).toBeGreaterThan(3);
+    const x = a.pos.x;
+    game.dispatch({ type: 'dash', fighterId: a.id, dirX: 1, dirZ: 0 });
+    run(game, CONFIG.arena.dashSeconds);
+    expect(a.pos.x - x).toBeLessThan(2); // on cooldown: only leftover momentum
+  });
+});
+
 describe('block and reverse', () => {
   it('block stops punches', () => {
     const game = setup();
